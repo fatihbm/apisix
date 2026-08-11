@@ -78,6 +78,7 @@ local schema = {
         cache = cache_schema,
     },
     additionalProperties = false,
+    encrypt_fields = {"cache.redis_password"},
 }
 
 local _M = {
