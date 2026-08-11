@@ -82,7 +82,7 @@ invalid original_method_header/
             local t = require("lib.test_admin").test
             local code, body = t('/apisix/admin/routes/1',
                  ngx.HTTP_PUT,
-                 [[{
+                 [=[{
                     "vars": [["request_method", "==", "QUERY"]],
                     "plugins": {
                         "proxy-rewrite": {
@@ -97,7 +97,7 @@ invalid original_method_header/
                         "type": "roundrobin"
                     },
                     "uri": "/query-to-post"
-                }]]
+                }]=]
             )
 
             if code >= 300 then
@@ -131,7 +131,7 @@ x-real-ip: 127.0.0.1
             local t = require("lib.test_admin").test
             local code, body = t('/apisix/admin/routes/1',
                  ngx.HTTP_PUT,
-                 [[{
+                 [=[{
                     "vars": [["request_method", "==", "QUERY"]],
                     "plugins": {
                         "proxy-rewrite": {
@@ -146,7 +146,7 @@ x-real-ip: 127.0.0.1
                         "type": "roundrobin"
                     },
                     "uri": "/query-to-post/body"
-                }]]
+                }]=]
             )
 
             if code >= 300 then
