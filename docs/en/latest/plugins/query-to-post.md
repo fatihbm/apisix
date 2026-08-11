@@ -31,7 +31,7 @@ description: The query-to-post Plugin forwards QUERY requests to POST-only Upstr
 
 The `query-to-post` Plugin forwards HTTP `QUERY` requests to Upstream services as `POST` requests. It does not read, modify, or re-encode the request body.
 
-Configure the Plugin only on Routes that explicitly match the `QUERY` method. Route matching and request security policies run against the client method. The method is changed immediately before APISIX proxies the request to the Upstream service.
+Configure the Plugin only on Routes that explicitly match `request_method == QUERY`. Route matching and request security policies run against the client method. The method is changed immediately before APISIX proxies the request to the Upstream service.
 
 ## Attributes
 
@@ -49,7 +49,7 @@ curl "http://127.0.0.1:9180/apisix/admin/routes/query-search" -X PUT \
   -H "X-API-KEY: ${admin_key}" \
   -d '{
     "uri": "/v1/search",
-    "methods": ["QUERY"],
+    "vars": [["request_method", "==", "QUERY"]],
     "plugins": {
       "query-to-post": {}
     },
@@ -84,5 +84,5 @@ Content-Type: application/json
 ## Notes
 
 - The Plugin only transforms `QUERY` requests. Requests using other methods are left unchanged.
-- Configure `methods: ["QUERY"]` on the Route to prevent POST requests from matching the same Route.
+- Match `QUERY` explicitly with `vars: [["request_method", "==", "QUERY"]]` to prevent POST requests from matching the same Route.
 - The Plugin does not add request-body-aware caching. Cache policy is a separate concern.
