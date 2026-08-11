@@ -83,7 +83,7 @@ invalid original_method_header/
             local code, body = t('/apisix/admin/routes/1',
                  ngx.HTTP_PUT,
                  [[{
-                    "methods": ["QUERY"],
+                    "vars": [["request_method", "==", "QUERY"]],
                     "plugins": {
                         "proxy-rewrite": {
                             "uri": "/uri/plugin_proxy_rewrite"
@@ -132,7 +132,7 @@ x-real-ip: 127.0.0.1
             local code, body = t('/apisix/admin/routes/1',
                  ngx.HTTP_PUT,
                  [[{
-                    "methods": ["QUERY"],
+                    "vars": [["request_method", "==", "QUERY"]],
                     "plugins": {
                         "proxy-rewrite": {
                             "uri": "/echo"
