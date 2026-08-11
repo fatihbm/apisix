@@ -24,7 +24,6 @@ local concat = table.concat
 local lower = string.lower
 local pairs = pairs
 local ipairs = ipairs
-local type = type
 
 local _M = {}
 
@@ -37,11 +36,6 @@ local HOP_BY_HOP = {
     trailer = true,
     ["transfer-encoding"] = true,
     upgrade = true,
-}
-
-local UNSAFE_REQUEST_HEADERS = {
-    authorization = true,
-    range = true,
 }
 
 local ALLOWED_VARY = {
@@ -229,7 +223,7 @@ local function parse_cookie(header, allowed)
     return concat(result, ";")
 end
 
-local function request_is_cacheable(conf, ctx, headers)
+local function request_is_cacheable(conf, headers)
     if headers["authorization"] or headers["range"] then
         return nil, "sensitive request header"
     end
@@ -272,7 +266,7 @@ end
 
 function _M.fetch(conf, ctx)
     local headers = core.request.headers(ctx)
-    local cookie_key, reason = request_is_cacheable(conf, ctx, headers)
+    local cookie_key, reason = request_is_cacheable(conf, headers)
     if not cookie_key then
         return nil, reason
     end
@@ -425,6 +419,11 @@ function _M.body_filter(conf, ctx)
     local key, ttl = ctx.query_rewrite_cache_key, entry.ttl
     local cache_conf = conf
     ctx.query_rewrite_cache_entry = nil
+
+    if cache_conf.backend == "local" then
+        backend_set(cache_conf, key, payload, ttl)
+        return
+    end
 
     local ok, err = ngx.timer.at(0, function(premature)
         if premature then
