@@ -25,6 +25,9 @@ local concat = table.concat
 local lower = string.lower
 local pairs = pairs
 local ipairs = ipairs
+local math_min = math.min
+local table_sort = table.sort
+local tonumber = tonumber
 
 local _M = {}
 
@@ -226,7 +229,7 @@ local function parse_cookie(header, allowed)
     for name, _ in pairs(allowed) do
         result[#result + 1] = name .. "=" .. (seen[name] or "")
     end
-    table.sort(result)
+    table_sort(result)
     return concat(result, ";")
 end
 
@@ -361,7 +364,7 @@ local function response_is_cacheable(conf, ctx, headers)
     local max_age = cache_control and
                     ngx.re.match(cache_control, "(?:s-maxage|max-age)=(\\d+)", "ijo")
     if max_age then
-        ttl = math.min(ttl, tonumber(max_age[1]))
+        ttl = math_min(ttl, tonumber(max_age[1]))
     end
     if ttl <= 0 then
         return nil
