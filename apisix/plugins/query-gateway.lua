@@ -137,31 +137,39 @@ end
 
 function _M.access(conf, ctx)
     local method = ngx.req.get_method()
-    if method ~= "QUERY" then
+    if method ~= "QUERY" and method ~= "POST" then
         return
     end
 
+    ctx.query_gateway_client_method = method
+
     local cache_conf = conf.cache
-    if cache_conf and cache_conf.enabled then
+    local post_cache_enabled = conf.post and conf.post.cache_enabled and conf.post.read_only
+    if cache_conf and cache_conf.enabled and (method == "QUERY" or post_cache_enabled) then
         local entry, status = cache.fetch(cache_conf, ctx)
         if entry then
             return cache.serve(entry)
         end
 
-        if status == "missing content-type" then
+        if method == "QUERY" and status == "missing content-type" then
             return 400
         end
     end
 
-    ctx.query_rewrite_original_method = method
+    if method ~= "QUERY" then
+        return
+    end
+
+    ctx.query_gateway_original_method = method
 
     if conf.preserve_original_method_header ~= false then
         core.request.set_header(ctx, conf.original_method_header or "X-Original-Method", method)
     end
 
-    ngx.req.set_method(ngx.HTTP_POST)
+    if not conf.query or conf.query.upstream_method ~= "query" then
+        ngx.req.set_method(ngx.HTTP_POST)
+    end
 end
-
 function _M.header_filter(conf, ctx)
     if conf.cache and conf.cache.enabled then
         cache.header_filter(conf.cache, ctx)
