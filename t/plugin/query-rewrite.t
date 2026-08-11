@@ -29,6 +29,38 @@ repeat_each(1);
 no_long_string();
 no_shuffle();
 no_root_location();
+
+add_block_preprocessor(sub {
+    my ($block) = @_;
+
+    my $http_config = $block->http_config // "";
+    $http_config .= <<_EOC_;
+lua_shared_dict query-rewrite-cache 32m;
+
+server {
+    listen 1986;
+
+    location = /query-rewrite-method {
+        content_by_lua_block {
+            ngx.say("method: ", ngx.req.get_method())
+            ngx.say("x-original-method: ",
+                    ngx.req.get_headers()["x-original-method"])
+        }
+    }
+
+    location = /query-cache {
+        content_by_lua_block {
+            local value = ngx.shared["query-rewrite-cache"]:incr("test-counter", 1, 0)
+            ngx.say("method: ", ngx.req.get_method())
+            ngx.say("counter: ", value)
+        }
+    }
+}
+_EOC_
+
+    $block->set_value("http_config", $http_config);
+});
+
 run_tests;
 
 __DATA__
@@ -100,7 +132,7 @@ invalid original_method_header/
                     },
                     "upstream": {
                         "nodes": {
-                            "127.0.0.1:1980": 1
+                            "127.0.0.1:1986": 1
                         },
                         "type": "roundrobin"
                     },
@@ -147,7 +179,7 @@ x-original-method: QUERY
                     },
                     "upstream": {
                         "nodes": {
-                            "127.0.0.1:1980": 1
+                            "127.0.0.1:1986": 1
                         },
                         "type": "roundrobin"
                     },
@@ -245,7 +277,7 @@ cache.redis_host is required/
                     },
                     "upstream": {
                         "nodes": {
-                            "127.0.0.1:1980": 1
+                            "127.0.0.1:1986": 1
                         },
                         "type": "roundrobin"
                     },
