@@ -17,6 +17,7 @@
 local core = require("apisix.core")
 local redis = require("apisix.utils.redis")
 local rediscluster = require("apisix.utils.rediscluster")
+local resty_sha256 = require("resty.sha256")
 local to_hex = require("resty.string").to_hex
 local ngx = ngx
 
@@ -43,6 +44,12 @@ local ALLOWED_VARY = {
     ["accept-encoding"] = true,
     ["accept-language"] = true,
 }
+
+local function sha256_hex(value)
+    local sha256 = resty_sha256:new()
+    sha256:update(value)
+    return to_hex(sha256:final())
+end
 
 local function shared_dict()
     return ngx.shared["query-rewrite-cache"]
@@ -297,9 +304,9 @@ function _M.fetch(conf, ctx)
         headers["accept-language"] or "",
         cookie_key,
         identity,
-        to_hex(ngx.sha256_bin(body)),
+        sha256_hex(body),
     }, "\0")
-    local key = "apisix:query-rewrite:{" .. to_hex(ngx.sha256_bin(key_material)) .. "}"
+    local key = "apisix:query-rewrite:{" .. sha256_hex(key_material) .. "}"
 
     local value, _, backend = backend_get(conf, key)
     ctx.query_rewrite_cache_key = key
@@ -351,7 +358,8 @@ local function response_is_cacheable(conf, ctx, headers)
     end
 
     local ttl = conf.ttl
-    local max_age = cache_control and ngx.re.match(cache_control, "(?:s-maxage|max-age)=(\\d+)", "ijo")
+    local max_age = cache_control and
+                    ngx.re.match(cache_control, "(?:s-maxage|max-age)=(\\d+)", "ijo")
     if max_age then
         ttl = math.min(ttl, tonumber(max_age[1]))
     end
