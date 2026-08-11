@@ -184,3 +184,140 @@ qr/{"query":"apisix"}/
 POST /query-rewrite/body
 {"query":"apisix"}
 --- error_code: 404
+
+
+
+
+=== TEST 8: reject incomplete Redis cache configuration
+--- config
+    location /t {
+        content_by_lua_block {
+            local plugin = require("apisix.plugins.query-rewrite")
+            local ok, err = plugin.check_schema({
+                cache = {
+                    enabled = true,
+                    backend = "redis",
+                },
+            })
+            ngx.say(ok)
+            ngx.say(err)
+        }
+    }
+--- request
+GET /t
+--- response_body_like eval
+qr/false
+cache.redis_host is required/
+
+
+=== TEST 9: add a body-aware QUERY cache route
+--- upstream_server_config
+        location = /query-cache {
+            content_by_lua_block {
+                local value = ngx.shared["query-rewrite-cache"]:incr("test-counter", 1, 0)
+                ngx.say("method: ", ngx.req.get_method())
+                ngx.say("counter: ", value)
+            }
+        }
+--- config
+    location /t {
+        content_by_lua_block {
+            ngx.shared["query-rewrite-cache"]:delete("test-counter")
+
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/2',
+                 ngx.HTTP_PUT,
+                 [=[{
+                    "vars": [["request_method", "==", "QUERY"]],
+                    "plugins": {
+                        "proxy-rewrite": {
+                            "uri": "/query-cache"
+                        },
+                        "query-rewrite": {
+                            "cache": {
+                                "enabled": true,
+                                "backend": "local",
+                                "ttl": 30,
+                                "max_request_body_size": 1024,
+                                "max_response_body_size": 1024
+                            }
+                        }
+                    },
+                    "upstream": {
+                        "nodes": {
+                            "127.0.0.1:1980": 1
+                        },
+                        "type": "roundrobin"
+                    },
+                    "uri": "/query-rewrite/cache"
+                }]=]
+            )
+
+            if code >= 300 then
+                ngx.status = code
+            end
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+
+
+=== TEST 10: store a QUERY response under its request body digest
+--- more_headers
+Content-Type: application/json
+--- request
+QUERY /query-rewrite/cache
+{"query":"one"}
+--- response_body
+method: POST
+counter: 1
+--- response_headers
+Apisix-Cache-Status: MISS
+
+
+=== TEST 11: serve the same QUERY body from the local cache
+--- more_headers
+Content-Type: application/json
+--- request
+QUERY /query-rewrite/cache
+{"query":"one"}
+--- response_body
+method: POST
+counter: 1
+--- response_headers
+Apisix-Cache-Status: HIT
+
+
+=== TEST 12: do not collide cache entries for different QUERY bodies
+--- more_headers
+Content-Type: application/json
+--- request
+QUERY /query-rewrite/cache
+{"query":"two"}
+--- response_body
+method: POST
+counter: 2
+--- response_headers
+Apisix-Cache-Status: MISS
+
+
+=== TEST 13: bypass cache for a request cookie
+--- more_headers
+Content-Type: application/json
+Cookie: session=private
+--- request
+QUERY /query-rewrite/cache
+{"query":"one"}
+--- response_body
+method: POST
+counter: 3
+
+
+=== TEST 14: reject a cacheable QUERY without Content-Type
+--- request
+QUERY /query-rewrite/cache
+{"query":"missing-type"}
+--- error_code: 400
