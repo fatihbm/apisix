@@ -76,6 +76,14 @@ invalid original_method_header/
 
 
 === TEST 3: add a QUERY route
+--- upstream_server_config
+        location = /query-rewrite-method {
+            content_by_lua_block {
+                ngx.say("method: ", ngx.req.get_method())
+                ngx.say("x-original-method: ",
+                        ngx.req.get_headers()["x-original-method"])
+            }
+        }
 --- config
     location /t {
         content_by_lua_block {
@@ -86,7 +94,7 @@ invalid original_method_header/
                     "vars": [["request_method", "==", "QUERY"]],
                     "plugins": {
                         "proxy-rewrite": {
-                            "uri": "/uri/plugin_proxy_rewrite"
+                            "uri": "/query-rewrite-method"
                         },
                         "query-rewrite": {}
                     },
@@ -117,10 +125,8 @@ passed
 --- request
 QUERY /query-rewrite
 --- response_body
-uri: /uri/plugin_proxy_rewrite
-host: localhost
+method: POST
 x-original-method: QUERY
-x-real-ip: 127.0.0.1
 
 
 
