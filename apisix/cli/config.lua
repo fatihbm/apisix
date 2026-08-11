@@ -254,6 +254,7 @@ local _M = {
     "proxy-mirror",
     "graphql-proxy-cache",
     "proxy-rewrite",
+    "query-to-post",
     "workflow",
     "api-breaker",
     "graphql-limit-count",
