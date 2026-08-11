@@ -312,8 +312,8 @@ function _M.fetch(conf, ctx)
     local key = "apisix:query-gateway:{" .. sha256_hex(key_material) .. "}"
 
     local value, _, backend = backend_get(conf, key)
-    ctx.query_rewrite_cache_key = key
-    ctx.query_rewrite_cache_backend = backend
+    ctx.query_gateway_cache_key = key
+    ctx.query_gateway_cache_backend = backend
     if not value then
         return nil, "miss"
     end
@@ -374,14 +374,14 @@ local function response_is_cacheable(conf, ctx, headers)
 end
 
 function _M.header_filter(conf, ctx)
-    if not ctx.query_rewrite_cache_key then
+    if not ctx.query_gateway_cache_key then
         return
     end
 
     local headers = ngx.resp.get_headers()
     local ttl = response_is_cacheable(conf, ctx, headers)
     if not ttl then
-        ctx.query_rewrite_cache_key = nil
+        ctx.query_gateway_cache_key = nil
         return
     end
 
@@ -392,7 +392,7 @@ function _M.header_filter(conf, ctx)
         end
     end
 
-    ctx.query_rewrite_cache_entry = {
+    ctx.query_gateway_cache_entry = {
         status = ngx.status,
         headers = stored_headers,
         chunks = {},
@@ -403,7 +403,7 @@ function _M.header_filter(conf, ctx)
 end
 
 function _M.body_filter(conf, ctx)
-    local entry = ctx.query_rewrite_cache_entry
+    local entry = ctx.query_gateway_cache_entry
     if not entry then
         return
     end
@@ -412,7 +412,7 @@ function _M.body_filter(conf, ctx)
     if chunk and #chunk > 0 then
         entry.size = entry.size + #chunk
         if entry.size > conf.max_response_body_size then
-            ctx.query_rewrite_cache_entry = nil
+            ctx.query_gateway_cache_entry = nil
             return
         end
         entry.chunks[#entry.chunks + 1] = chunk
@@ -427,9 +427,9 @@ function _M.body_filter(conf, ctx)
         headers = entry.headers,
         body = ngx.encode_base64(concat(entry.chunks)),
     })
-    local key, ttl = ctx.query_rewrite_cache_key, entry.ttl
+    local key, ttl = ctx.query_gateway_cache_key, entry.ttl
     local cache_conf = conf
-    ctx.query_rewrite_cache_entry = nil
+    ctx.query_gateway_cache_entry = nil
 
     if cache_conf.backend == "local" then
         backend_set(cache_conf, key, payload, ttl)
