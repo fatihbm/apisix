@@ -145,13 +145,6 @@ local method_schema = {
         "OPTIONS", "CONNECT", "TRACE", "PURGE"},
 }
 
-local route_method_schema = {
-    description = "HTTP method",
-    type = "string",
-    enum = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD",
-        "OPTIONS", "CONNECT", "TRACE", "PURGE", "QUERY"},
-}
-
 
 local health_checker_active = {
     type = "object",
@@ -603,7 +596,7 @@ _M.route = {
 
         methods = {
             type = "array",
-            items = route_method_schema,
+            items = method_schema,
             uniqueItems = true,
         },
         host = host_def,
