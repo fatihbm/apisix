@@ -86,7 +86,6 @@ GET /t
 done
 
 
-
 === TEST 2: reject an invalid original method header
 --- config
     location /t {
@@ -104,7 +103,6 @@ GET /t
 --- response_body_like eval
 qr/false
 invalid original_method_header/
-
 
 
 === TEST 3: add a QUERY route
@@ -152,14 +150,12 @@ GET /t
 passed
 
 
-
 === TEST 4: transform QUERY to POST and preserve the original method
 --- request
 QUERY /query-rewrite
 --- response_body
 method: POST
 x-original-method: QUERY
-
 
 
 === TEST 5: update route to forward the request body
@@ -199,7 +195,6 @@ GET /t
 passed
 
 
-
 === TEST 6: preserve QUERY request body
 --- more_headers
 Content-Type: application/json
@@ -210,14 +205,11 @@ QUERY /query-rewrite/body
 qr/{"query":"apisix"}/
 
 
-
 === TEST 7: do not match POST on a QUERY-only route
 --- request
 POST /query-rewrite/body
 {"query":"apisix"}
 --- error_code: 404
-
-
 
 
 === TEST 8: reject incomplete Redis cache configuration
