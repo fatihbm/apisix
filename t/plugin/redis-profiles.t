@@ -89,22 +89,38 @@ __DATA__
                 })
                 assert(code < 300, body)
             end
-            ngx.sleep(0.2)
-            for uri, _ in pairs(routes) do
-                code, body = t(uri, ngx.HTTP_GET)
-                assert(code == 200, body)
-            end
+            ngx.say("passed")
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
 
-            code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
+
+
+=== TEST 2: use standalone profile with each supported Redis plugin
+--- pipelined_requests eval
+[
+    "GET /profile-limit-req",
+    "GET /profile-limit-conn",
+    "GET /profile-limit-count",
+]
+--- error_code eval
+[200, 200, 200]
+
+
+
+=== TEST 3: update standalone profile and create cluster and sentinel profiles
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
                 "redis_keepalive_pool": 32,
                 "redis_keepalive_timeout": 30000
             }]])
             assert(code < 300, body)
-            ngx.sleep(0.2)
-            for uri, _ in pairs(routes) do
-                code, body = t(uri, ngx.HTTP_GET)
-                assert(code == 200, body)
-            end
 
             code, body = t("/apisix/admin/redis_profiles/cluster", ngx.HTTP_PUT, [[{
                 "mode": "cluster",
@@ -139,8 +155,6 @@ __DATA__
                 "upstream": {"type": "roundrobin", "nodes": {"127.0.0.1:1980": 1}}
             }]])
             assert(code < 300, body)
-
-            ngx.sleep(0.2)
             ngx.say("passed")
         }
     }
@@ -148,3 +162,15 @@ __DATA__
 GET /t
 --- response_body
 passed
+
+
+
+=== TEST 4: retain standalone profile connectivity after its runtime update
+--- pipelined_requests eval
+[
+    "GET /profile-limit-req",
+    "GET /profile-limit-conn",
+    "GET /profile-limit-count",
+]
+--- error_code eval
+[200, 200, 200]
