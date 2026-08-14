@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 BEGIN {
+    $ENV{REDIS_HOST} = "127.0.0.1";
+
     if ($ENV{TEST_NGINX_CHECK_LEAK}) {
         $SkipReason = "unavailable for the hup tests";
     } else {
@@ -50,7 +52,7 @@ __DATA__
             local t = require("lib.test_admin").test
             local code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PUT, [[{
                 "mode": "standalone",
-                "host": "127.0.0.1",
+                "host": "$ENV://REDIS_HOST",
                 "port": 6379,
                 "database": 0,
                 "timeout": 1000
