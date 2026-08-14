@@ -35,9 +35,9 @@ __DATA__
                 ngx.HTTP_PUT,
                 [[{
                     "mode": "standalone",
-                    "host": "redis.internal",
-                    "port": 6380,
-                    "database": 2
+                    "redis_host": "redis.internal",
+                    "redis_port": 6380,
+                    "redis_database": 2
                 }]])
             ngx.status = code
             ngx.say(body)
@@ -59,7 +59,7 @@ passed
                 ngx.HTTP_PUT,
                 [[{
                     "mode": "sentinel",
-                    "master_name": "mymaster"
+                    "redis_master_name": "mymaster"
                 }]])
             ngx.status = code
             ngx.say(body)
@@ -68,7 +68,7 @@ passed
 --- request
 GET /t
 --- error_code: 400
---- response_body_like: ^{"error_msg":".*sentinels and master_name.*"}$
+--- response_body_like: ^{"error_msg":".*redis_sentinels and redis_master_name.*"}$
 
 
 
@@ -79,10 +79,10 @@ GET /t
             local t = require("lib.test_admin").test
             local code, body = t("/apisix/admin/redis_profiles/cluster-a", ngx.HTTP_PUT, [[{
                 "mode": "cluster",
-                "cluster_name": "cluster-a",
-                "nodes": ["127.0.0.1:7000", {"host": "127.0.0.1", "port": 7001}],
-                "timeout": 1500,
-                "ssl": true
+                "redis_cluster_name": "cluster-a",
+                "redis_cluster_nodes": ["127.0.0.1:7000", "127.0.0.1:7001"],
+                "redis_timeout": 1500,
+                "redis_cluster_ssl": true
             }]])
             assert(code == 200, body)
 
@@ -90,14 +90,14 @@ GET /t
                 "value": {
                     "id": "cluster-a",
                     "mode": "cluster",
-                    "cluster_name": "cluster-a"
+                    "redis_cluster_name": "cluster-a"
                 }
             }]])
             assert(code == 200, body)
 
             code, body = t("/apisix/admin/redis_profiles/cluster-a", ngx.HTTP_PATCH, [[{
-                "timeout": 2500,
-                "keepalive_pool": 64
+                "redis_timeout": 2500,
+                "redis_keepalive_pool": 64
             }]])
             assert(code == 200, body)
 
@@ -123,13 +123,13 @@ passed
             local t = require("lib.test_admin").test
             local code, body = t("/apisix/admin/redis_profiles/sentinel-a", ngx.HTTP_PUT, [[{
                 "mode": "sentinel",
-                "master_name": "mymaster",
-                "sentinels": [{"host": "127.0.0.1", "port": 26379}],
-                "username": "redis-user",
+                "redis_master_name": "mymaster",
+                "redis_sentinels": ["127.0.0.1:26379"],
+                "redis_username": "redis-user",
                 "sentinel_username": "sentinel-user",
-                "connect_timeout": 1000,
-                "read_timeout": 2000,
-                "role": "slave"
+                "redis_connect_timeout": 1000,
+                "redis_read_timeout": 2000,
+                "redis_role": "slave"
             }]])
             assert(code == 200, body)
             ngx.say("passed")
@@ -148,10 +148,11 @@ passed
         content_by_lua_block {
             local t = require("lib.test_admin").test
             local cases = {
-                [[{"mode":"cluster","cluster_name":"cluster-a"}]],
-                [[{"mode":"standalone","host":"redis","port":0}]],
-                [[{"mode":"standalone","host":"redis","unexpected":true}]],
-                [[{"mode":"sentinel","master_name":"mymaster","sentinels":[{"host":"redis","port":0}]}]],
+                [[{"mode":"cluster","redis_cluster_name":"cluster-a"}]],
+                [[{"mode":"standalone","redis_host":"redis","redis_port":0}]],
+                [[{"mode":"standalone","redis_host":"redis","unexpected":true}]],
+                [[{"mode":"sentinel","redis_master_name":"mymaster",
+                    "redis_sentinels":["redis:0"]}]],
             }
             for i, conf in ipairs(cases) do
                 local code, body = t("/apisix/admin/redis_profiles/invalid-" .. i,
@@ -182,22 +183,22 @@ apisix:
             local t = require("lib.test_admin").test
             local code, body = t("/apisix/admin/redis_profiles/encrypted", ngx.HTTP_PUT, [[{
                 "mode": "standalone",
-                "host": "127.0.0.1",
-                "password": "redis-password"
+                "redis_host": "127.0.0.1",
+                "redis_password": "redis-password"
             }]])
             assert(code == 200, body)
 
             local res = assert(core.etcd.get("/redis_profiles/encrypted"))
-            local stored = res.body.node.value.password
+            local stored = res.body.node.value.redis_password
             assert(stored ~= "redis-password")
             assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
 
             code, body = t("/apisix/admin/redis_profiles/encrypted", ngx.HTTP_PATCH,
-                [[{"database": 2}]])
+                [[{"redis_database": 2}]])
             assert(code == 200, body)
 
             res = assert(core.etcd.get("/redis_profiles/encrypted"))
-            stored = res.body.node.value.password
+            stored = res.body.node.value.redis_password
             assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
             ngx.say("passed")
         }
