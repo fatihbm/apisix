@@ -55,6 +55,11 @@ local policy_to_additional_properties = {
     },
     ["redis-cluster"] = {
         properties = {
+            -- A virtual profile reference is resolved after plugin schema
+            -- validation and supplies the native cluster fields at runtime.
+            redis_host = {
+                type = "string", pattern = "^redis-profile://.+",
+            },
             redis_cluster_nodes = {
                 type = "array",
                 minItems = 1,
@@ -84,7 +89,10 @@ local policy_to_additional_properties = {
                 type = "integer", minimum = 1, default = 100
             }
         },
-        required = {"redis_cluster_nodes", "redis_cluster_name"},
+        anyOf = {
+            {required = {"redis_cluster_nodes", "redis_cluster_name"}},
+            {required = {"redis_host"}},
+        },
     },
 }
 
