@@ -22,13 +22,26 @@ local function check_conf(_, conf)
     return redis_profile.check_conf(conf)
 end
 
+local function encrypt_field(conf, field, subject)
+    local value = conf[field]
+    if not value then
+        return
+    end
+
+    -- PATCH starts from the existing etcd value. Unlike plugin resources,
+    -- redis profiles are not processed by utils.decrypt_params, so an
+    -- unchanged password is still ciphertext here. Do not encrypt it again.
+    local decrypted = core.data_encryption.decrypt(value, subject)
+    if decrypted then
+        return
+    end
+
+    conf[field] = core.data_encryption.encrypt(value)
+end
+
 local function encrypt_conf(_, conf)
-    if conf.redis_password then
-        conf.redis_password = core.data_encryption.encrypt(conf.redis_password)
-    end
-    if conf.sentinel_password then
-        conf.sentinel_password = core.data_encryption.encrypt(conf.sentinel_password)
-    end
+    encrypt_field(conf, "redis_password", "redis password")
+    encrypt_field(conf, "sentinel_password", "redis sentinel password")
 end
 
 return resource.new({
