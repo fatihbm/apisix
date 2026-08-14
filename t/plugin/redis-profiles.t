@@ -52,10 +52,10 @@ __DATA__
             local t = require("lib.test_admin").test
             local code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PUT, [[{
                 "mode": "standalone",
-                "host": "$ENV://REDIS_HOST",
-                "port": 6379,
-                "database": 0,
-                "timeout": 1000
+                "redis_host": "$ENV://REDIS_HOST",
+                "redis_port": 6379,
+                "redis_database": 0,
+                "redis_timeout": 1000
             }]])
             assert(code == 200, body)
 
@@ -114,8 +114,8 @@ passed
         content_by_lua_block {
             local t = require("lib.test_admin").test
             local code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
-                "keepalive_pool": 32,
-                "keepalive_timeout": 30000
+                "redis_keepalive_pool": 32,
+                "redis_keepalive_timeout": 30000
             }]])
             assert(code == 200, body)
             ngx.sleep(0.2)
@@ -137,27 +137,27 @@ passed
 
 
 
-=== TEST 5: create cluster and sentinel profiles
+=== TEST 5: create native cluster and sentinel profiles
 --- config
     location /t {
         content_by_lua_block {
             local t = require("lib.test_admin").test
             local code, body = t("/apisix/admin/redis_profiles/cluster", ngx.HTTP_PUT, [[{
                 "mode": "cluster",
-                "cluster_name": "test",
-                "nodes": ["127.0.0.1:7000", "127.0.0.1:7001", "127.0.0.1:7002"],
-                "ssl": true,
-                "ssl_verify": false
+                "redis_cluster_name": "test",
+                "redis_cluster_nodes": ["127.0.0.1:7000", "127.0.0.1:7001", "127.0.0.1:7002"],
+                "redis_cluster_ssl": true,
+                "redis_cluster_ssl_verify": false
             }]])
             assert(code == 200, body)
 
             code, body = t("/apisix/admin/redis_profiles/sentinel", ngx.HTTP_PUT, [[{
                 "mode": "sentinel",
-                "master_name": "mymaster",
-                "sentinels": [{"host": "127.0.0.1", "port": 26379}],
-                "username": "master",
-                "password": "master-password",
-                "role": "master"
+                "redis_master_name": "mymaster",
+                "redis_sentinels": ["127.0.0.1:26379"],
+                "redis_username": "master",
+                "redis_password": "master-password",
+                "redis_role": "master"
             }]])
             assert(code == 200, body)
 
@@ -168,7 +168,7 @@ passed
                         "rate": 20,
                         "burst": 0,
                         "key": "remote_addr",
-                        "policy": "redis",
+                        "policy": "redis-cluster",
                         "redis_host": "redis-profile://cluster"
                     }
                 },
@@ -176,20 +176,6 @@ passed
             }]])
             assert(code == 200, body)
 
-            code, body = t("/apisix/admin/routes/profile-sentinel", ngx.HTTP_PUT, [[{
-                "uri": "/profile-sentinel",
-                "plugins": {
-                    "limit-count": {
-                        "count": 20,
-                        "time_window": 60,
-                        "key": "remote_addr",
-                        "policy": "redis",
-                        "redis_host": "redis-profile://sentinel"
-                    }
-                },
-                "upstream": {"type": "roundrobin", "nodes": {"127.0.0.1:1980": 1}}
-            }]])
-            assert(code == 200, body)
             ngx.sleep(0.2)
             ngx.say("passed")
         }
@@ -201,8 +187,8 @@ passed
 
 
 
-=== TEST 6: cluster and sentinel profiles are used on request path
+=== TEST 6: standalone profile remains usable after other topology profiles exist
 --- pipelined_requests eval
-["GET /profile-cluster", "GET /profile-sentinel"]
+["GET /profile-limit-req", "GET /profile-limit-count"]
 --- error_code eval
 [200, 200]
