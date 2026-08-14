@@ -39,7 +39,7 @@ __DATA__
                     "redis_port": 6380,
                     "redis_database": 2
                 }]])
-            ngx.status = code
+            ngx.status = ngx.HTTP_OK
             ngx.say(body)
         }
     }
@@ -68,7 +68,7 @@ passed
 --- request
 GET /t
 --- error_code: 400
---- response_body_like: ^{"error_msg":".*redis_sentinels and redis_master_name.*"}$
+--- response_body_like: ^sentinel profile requires redis_sentinels and redis_master_name$
 
 
 
@@ -152,7 +152,7 @@ passed
                 [[{"mode":"standalone","redis_host":"redis","redis_port":0}]],
                 [[{"mode":"standalone","redis_host":"redis","unexpected":true}]],
                 [[{"mode":"sentinel","redis_master_name":"mymaster",
-                    "redis_sentinels":["redis:0"]}]],
+                    "redis_sentinels":[""]}]],
             }
             for i, conf in ipairs(cases) do
                 local code, body = t("/apisix/admin/redis_profiles/invalid-" .. i,
@@ -189,7 +189,7 @@ apisix:
             assert(code < 300, body)
 
             local res = assert(core.etcd.get("/redis_profiles/encrypted"))
-            local stored = res.body.node.value.redis_password
+            local stored = core.json.decode(res.body.node.value).redis_password
             assert(stored ~= "redis-password")
             assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
 
@@ -198,7 +198,7 @@ apisix:
             assert(code < 300, body)
 
             res = assert(core.etcd.get("/redis_profiles/encrypted"))
-            stored = res.body.node.value.redis_password
+            stored = core.json.decode(res.body.node.value).redis_password
             assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
             ngx.say("passed")
         }
