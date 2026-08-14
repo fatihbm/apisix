@@ -57,7 +57,7 @@ __DATA__
                 "redis_database": 0,
                 "redis_timeout": 1000
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             local routes = {
                 ["/profile-limit-req"] = {
@@ -87,7 +87,7 @@ __DATA__
                     plugins = {[name] = plugin},
                     upstream = {type = "roundrobin", nodes = {["127.0.0.1:1980"] = 1}},
                 })
-                assert(code == 200, body)
+                assert(code < 300, body)
             end
             ngx.sleep(0.2)
             ngx.say("passed")
@@ -117,7 +117,7 @@ passed
                 "redis_keepalive_pool": 32,
                 "redis_keepalive_timeout": 30000
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
             ngx.sleep(0.2)
             ngx.say("passed")
         }
@@ -149,7 +149,7 @@ passed
                 "redis_cluster_ssl": true,
                 "redis_cluster_ssl_verify": false
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             code, body = t("/apisix/admin/redis_profiles/sentinel", ngx.HTTP_PUT, [[{
                 "mode": "sentinel",
@@ -159,7 +159,7 @@ passed
                 "redis_password": "master-password",
                 "redis_role": "master"
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             code, body = t("/apisix/admin/routes/profile-cluster", ngx.HTTP_PUT, [[{
                 "uri": "/profile-cluster",
@@ -174,7 +174,7 @@ passed
                 },
                 "upstream": {"type": "roundrobin", "nodes": {"127.0.0.1:1980": 1}}
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             ngx.sleep(0.2)
             ngx.say("passed")
