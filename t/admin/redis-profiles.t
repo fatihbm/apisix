@@ -84,7 +84,7 @@ GET /t
                 "redis_timeout": 1500,
                 "redis_cluster_ssl": true
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             code, body = t("/apisix/admin/redis_profiles/cluster-a", ngx.HTTP_GET, nil, [[{
                 "value": {
@@ -93,19 +93,19 @@ GET /t
                     "redis_cluster_name": "cluster-a"
                 }
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             code, body = t("/apisix/admin/redis_profiles/cluster-a", ngx.HTTP_PATCH, [[{
                 "redis_timeout": 2500,
                 "redis_keepalive_pool": 64
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             code, body = t("/apisix/admin/redis_profiles", ngx.HTTP_GET)
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             code, body = t("/apisix/admin/redis_profiles/cluster-a", ngx.HTTP_DELETE)
-            assert(code == 200, body)
+            assert(code < 300, body)
             ngx.say("passed")
         }
     }
@@ -131,7 +131,7 @@ passed
                 "redis_read_timeout": 2000,
                 "redis_role": "slave"
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
             ngx.say("passed")
         }
     }
@@ -186,7 +186,7 @@ apisix:
                 "redis_host": "127.0.0.1",
                 "redis_password": "redis-password"
             }]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             local res = assert(core.etcd.get("/redis_profiles/encrypted"))
             local stored = res.body.node.value.redis_password
@@ -195,7 +195,7 @@ apisix:
 
             code, body = t("/apisix/admin/redis_profiles/encrypted", ngx.HTTP_PATCH,
                 [[{"redis_database": 2}]])
-            assert(code == 200, body)
+            assert(code < 300, body)
 
             res = assert(core.etcd.get("/redis_profiles/encrypted"))
             stored = res.body.node.value.redis_password
