@@ -16,7 +16,7 @@
 --
 local core = require("apisix.core")
 local error = error
-local ipairs = ipairs
+local pairs = pairs
 local type = type
 
 local _M = {
@@ -27,16 +27,6 @@ local prefix = "redis-profile://"
 local profiles
 local profile_cache = setmetatable({}, {__mode = "k"})
 
-local endpoint_schema = {
-    type = "object",
-    properties = {
-        host = {type = "string", minLength = 1},
-        port = {type = "integer", minimum = 1, maximum = 65535},
-    },
-    required = {"host", "port"},
-    additionalProperties = false,
-}
-
 local schema = {
     type = "object",
     properties = {
@@ -46,29 +36,32 @@ local schema = {
         create_time = {type = "integer"},
         update_time = {type = "integer"},
         mode = {type = "string", enum = {"standalone", "cluster", "sentinel"}},
-        host = {type = "string", minLength = 1},
-        port = {type = "integer", minimum = 1, maximum = 65535},
-        nodes = {
+        redis_host = {type = "string", minLength = 1},
+        redis_port = {type = "integer", minimum = 1, maximum = 65535},
+        redis_cluster_nodes = {
             type = "array",
             minItems = 1,
-            items = {oneOf = {{type = "string", minLength = 1}, endpoint_schema}},
+            items = {type = "string", minLength = 1},
         },
-        sentinels = {type = "array", minItems = 1, items = endpoint_schema},
-        cluster_name = {type = "string", minLength = 1},
-        master_name = {type = "string", minLength = 1},
-        username = {type = "string", minLength = 1},
-        password = {type = "string", minLength = 0},
+        redis_sentinels = {type = "array", minItems = 1,
+            items = {type = "string", minLength = 1}},
+        redis_cluster_name = {type = "string", minLength = 1},
+        redis_master_name = {type = "string", minLength = 1},
+        redis_username = {type = "string", minLength = 1},
+        redis_password = {type = "string", minLength = 0},
         sentinel_username = {type = "string", minLength = 1},
         sentinel_password = {type = "string", minLength = 0},
-        database = {type = "integer", minimum = 0},
-        timeout = {type = "integer", minimum = 1},
-        connect_timeout = {type = "integer", minimum = 1},
-        read_timeout = {type = "integer", minimum = 1},
-        keepalive_timeout = {type = "integer", minimum = 1},
-        keepalive_pool = {type = "integer", minimum = 1},
-        ssl = {type = "boolean"},
-        ssl_verify = {type = "boolean"},
-        role = {type = "string", enum = {"master", "slave"}},
+        redis_database = {type = "integer", minimum = 0},
+        redis_timeout = {type = "integer", minimum = 1},
+        redis_connect_timeout = {type = "integer", minimum = 1},
+        redis_read_timeout = {type = "integer", minimum = 1},
+        redis_keepalive_timeout = {type = "integer", minimum = 1},
+        redis_keepalive_pool = {type = "integer", minimum = 1},
+        redis_ssl = {type = "boolean"},
+        redis_ssl_verify = {type = "boolean"},
+        redis_cluster_ssl = {type = "boolean"},
+        redis_cluster_ssl_verify = {type = "boolean"},
+        redis_role = {type = "string", enum = {"master", "slave"}},
     },
     required = {"mode"},
     additionalProperties = false,
@@ -81,23 +74,23 @@ function _M.check_conf(conf)
         return false, err
     end
 
-    if conf.mode == "standalone" and not conf.host then
-        return false, "standalone profile requires host"
+    if conf.mode == "standalone" and not conf.redis_host then
+        return false, "standalone profile requires redis_host"
     end
-    if conf.mode == "cluster" and (not conf.nodes or not conf.cluster_name) then
-        return false, "cluster profile requires nodes and cluster_name"
+    if conf.mode == "cluster" and (not conf.redis_cluster_nodes or not conf.redis_cluster_name) then
+        return false, "cluster profile requires redis_cluster_nodes and redis_cluster_name"
     end
-    if conf.mode == "sentinel" and (not conf.sentinels or not conf.master_name) then
-        return false, "sentinel profile requires sentinels and master_name"
+    if conf.mode == "sentinel" and (not conf.redis_sentinels or not conf.redis_master_name) then
+        return false, "sentinel profile requires redis_sentinels and redis_master_name"
     end
 
     -- Values are encrypted before being stored in etcd. Keep plaintext input
     -- unchanged when no keyring is configured or when it was supplied through
     -- etcd directly, but decrypt values written by this resource for workers.
-    if conf.password then
-        local password = core.data_encryption.decrypt(conf.password, "redis password")
+    if conf.redis_password then
+        local password = core.data_encryption.decrypt(conf.redis_password, "redis password")
         if password then
-            conf.password = password
+            conf.redis_password = password
         end
     end
     if conf.sentinel_password then
@@ -123,55 +116,21 @@ local function get_profile_name(host)
     return name
 end
 
-local function normalise_cluster_nodes(nodes)
-    local result = core.table.new(#nodes, 0)
-    for i, node in ipairs(nodes) do
-        if type(node) == "string" then
-            result[i] = node
-        else
-            result[i] = node.host .. ":" .. node.port
+local function build_resolved_conf(conf, profile)
+    -- Profiles contain the same native Redis fields that plugins consume.
+    -- Keep topology selection and route-specific overrides in plugin config.
+    local resolved = core.table.deepcopy(profile)
+    resolved.id = nil
+    resolved.create_time = nil
+    resolved.update_time = nil
+    resolved.mode = nil
+
+    for key, value in pairs(conf) do
+        if key ~= "redis_host" then
+            resolved[key] = value
         end
     end
-    return result
-end
 
-local function apply_common_fields(resolved, profile)
-    resolved.redis_password = profile.password
-    resolved.redis_database = profile.database or 0
-    resolved.redis_keepalive_timeout = profile.keepalive_timeout
-    resolved.redis_keepalive_pool = profile.keepalive_pool
-end
-
-local function build_resolved_conf(conf, profile, profile_name)
-    local resolved = core.table.deepcopy(conf)
-    apply_common_fields(resolved, profile)
-
-    if profile.mode == "standalone" then
-        resolved.policy = "redis"
-        resolved.redis_host = profile.host
-        resolved.redis_port = profile.port or 6379
-        resolved.redis_username = profile.username
-        resolved.redis_timeout = profile.timeout
-        resolved.redis_ssl = profile.ssl
-        resolved.redis_ssl_verify = profile.ssl_verify
-    elseif profile.mode == "cluster" then
-        resolved.policy = "redis-cluster"
-        resolved.redis_cluster_nodes = normalise_cluster_nodes(profile.nodes)
-        resolved.redis_cluster_name = profile.cluster_name or profile_name
-        resolved.redis_timeout = profile.timeout
-        resolved.redis_cluster_ssl = profile.ssl
-        resolved.redis_cluster_ssl_verify = profile.ssl_verify
-    else
-        resolved.policy = "redis-sentinel"
-        resolved.redis_sentinels = profile.sentinels
-        resolved.redis_master_name = profile.master_name
-        resolved.redis_username = profile.username
-        resolved.sentinel_username = profile.sentinel_username
-        resolved.sentinel_password = profile.sentinel_password
-        resolved.redis_connect_timeout = profile.connect_timeout or profile.timeout
-        resolved.redis_read_timeout = profile.read_timeout or profile.timeout
-        resolved.redis_role = profile.role
-    end
     return resolved
 end
 
@@ -207,7 +166,7 @@ function _M.resolve(conf, profile_store)
         return cached.conf
     end
 
-    local resolved = build_resolved_conf(conf, profile, profile_name)
+    local resolved = build_resolved_conf(conf, profile)
     profile_cache[conf] = {modified_index = item.modifiedIndex, conf = resolved}
     return resolved
 end
