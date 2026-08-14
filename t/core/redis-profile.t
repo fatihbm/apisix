@@ -32,6 +32,9 @@ __DATA__
             local profile = require("apisix.core.redis_profile")
 
             assert(profile.check_conf({
+                id = "cache-primary",
+                create_time = 1,
+                update_time = 2,
                 mode = "standalone",
                 host = "127.0.0.1",
                 port = 6380,
