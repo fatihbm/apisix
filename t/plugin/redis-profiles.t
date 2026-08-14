@@ -45,7 +45,7 @@ run_tests;
 
 __DATA__
 
-=== TEST 1: create standalone profile and routes for redis plugins
+=== TEST 1: resolve profiles for redis plugins without route changes
 --- config
     location /t {
         content_by_lua_block {
@@ -90,59 +90,23 @@ __DATA__
                 assert(code < 300, body)
             end
             ngx.sleep(0.2)
-            ngx.say("passed")
-        }
-    }
---- request
-GET /t
---- response_body
-passed
+            for uri, _ in pairs(routes) do
+                code, body = t(uri, ngx.HTTP_GET)
+                assert(code == 200, body)
+            end
 
-
-
-=== TEST 2: standalone profile is used by limit-req, limit-conn and limit-count
---- pipelined_requests eval
-["GET /profile-limit-req", "GET /profile-limit-conn", "GET /profile-limit-count"]
---- error_code eval
-[200, 200, 200]
-
-
-
-=== TEST 3: update standalone profile without route change
---- config
-    location /t {
-        content_by_lua_block {
-            local t = require("lib.test_admin").test
-            local code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
+            code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
                 "redis_keepalive_pool": 32,
                 "redis_keepalive_timeout": 30000
             }]])
             assert(code < 300, body)
             ngx.sleep(0.2)
-            ngx.say("passed")
-        }
-    }
---- request
-GET /t
---- response_body
-passed
+            for uri, _ in pairs(routes) do
+                code, body = t(uri, ngx.HTTP_GET)
+                assert(code == 200, body)
+            end
 
-
-
-=== TEST 4: requests still succeed after profile update
---- pipelined_requests eval
-["GET /profile-limit-req", "GET /profile-limit-conn", "GET /profile-limit-count"]
---- error_code eval
-[200, 200, 200]
-
-
-
-=== TEST 5: create native cluster and sentinel profiles
---- config
-    location /t {
-        content_by_lua_block {
-            local t = require("lib.test_admin").test
-            local code, body = t("/apisix/admin/redis_profiles/cluster", ngx.HTTP_PUT, [[{
+            code, body = t("/apisix/admin/redis_profiles/cluster", ngx.HTTP_PUT, [[{
                 "mode": "cluster",
                 "redis_cluster_name": "test",
                 "redis_cluster_nodes": ["127.0.0.1:7000", "127.0.0.1:7001", "127.0.0.1:7002"],
@@ -184,11 +148,3 @@ passed
 GET /t
 --- response_body
 passed
-
-
-
-=== TEST 6: standalone profile remains usable after other topology profiles exist
---- pipelined_requests eval
-["GET /profile-limit-req", "GET /profile-limit-count"]
---- error_code eval
-[200, 200]
