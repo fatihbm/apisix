@@ -1,41 +1,40 @@
+--
+-- Licensed to the Apache Software Foundation (ASF) under one or more
+-- contributor license agreements.  See the NOTICE file distributed with
+-- this work for additional information regarding copyright ownership.
+-- The ASF licenses this file to You under the Apache License, Version 2.0
+-- (the "License"); you may not use this file except in compliance with
+-- the License.  You may obtain a copy of the License at
+--
+--     http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
 local core = require("apisix.core")
 local resource = require("apisix.admin.resource")
-
-local schema = {
-    type = "object",
-    properties = {
-        mode = {type = "string", enum = {"standalone", "cluster", "sentinel"}},
-        host = {type = "string"}, port = {type = "integer", minimum = 1},
-        nodes = {type = "array", items = {type = "string"}},
-        cluster_name = {type = "string"}, sentinels = {type = "array"},
-        master_name = {type = "string"}, username = {type = "string"},
-        password = {type = "string"}, database = {type = "integer", minimum = 0},
-    },
-    required = {"mode"},
-    additionalProperties = false,
-}
+local redis_profile = require("apisix.core.redis_profile")
 
 local function check_conf(_, conf)
-    local ok, err = core.schema.check(schema, conf)
-    if not ok then
-        return false, err
+    return redis_profile.check_conf(conf)
+end
+
+local function encrypt_conf(_, conf)
+    if conf.password then
+        conf.password = core.data_encryption.encrypt(conf.password)
     end
-    if conf.mode == "standalone" and not conf.host then
-        return false, "standalone profile requires host"
+    if conf.sentinel_password then
+        conf.sentinel_password = core.data_encryption.encrypt(conf.sentinel_password)
     end
-    if conf.mode == "cluster" and (not conf.nodes or #conf.nodes == 0) then
-        return false, "cluster profile requires nodes"
-    end
-    if conf.mode == "sentinel" and (not conf.sentinels or #conf.sentinels == 0
-        or not conf.master_name) then
-        return false, "sentinel profile requires sentinels and master_name"
-    end
-    return true
 end
 
 return resource.new({
     name = "redis_profiles",
     kind = "redis_profile",
-    schema = schema,
+    schema = redis_profile.schema,
     checker = check_conf,
+    encrypt_conf = encrypt_conf,
 })
