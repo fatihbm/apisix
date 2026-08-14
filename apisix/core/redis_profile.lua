@@ -41,6 +41,10 @@ local schema = {
     type = "object",
     properties = {
         id = {type = "string", minLength = 1},
+        -- These fields are injected by the APISIX resource layer before the
+        -- etcd watcher validates a persisted profile.
+        create_time = {type = "integer"},
+        update_time = {type = "integer"},
         mode = {type = "string", enum = {"standalone", "cluster", "sentinel"}},
         host = {type = "string", minLength = 1},
         port = {type = "integer", minimum = 1, maximum = 65535},
