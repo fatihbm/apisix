@@ -40,6 +40,7 @@ local endpoint_schema = {
 local schema = {
     type = "object",
     properties = {
+        id = {type = "string", minLength = 1},
         mode = {type = "string", enum = {"standalone", "cluster", "sentinel"}},
         host = {type = "string", minLength = 1},
         port = {type = "integer", minimum = 1, maximum = 65535},
@@ -184,7 +185,10 @@ end
 function _M.resolve(conf, profile_store)
     local profile_name, err = get_profile_name(conf.redis_host)
     if not profile_name then
-        return conf, err
+        if err then
+            return nil, err
+        end
+        return conf
     end
 
     profile_store = profile_store or profiles
