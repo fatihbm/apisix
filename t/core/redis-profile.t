@@ -218,6 +218,10 @@ passed
                 {get = function() return nil end})
             assert(not missing)
             assert(err == "redis profile not found: missing")
+
+            missing, err = profile.resolve({redis_host = "redis-profile://"})
+            assert(not missing)
+            assert(err == "redis profile name is empty")
             ngx.say("passed")
         }
     }
