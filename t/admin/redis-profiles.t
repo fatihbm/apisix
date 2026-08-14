@@ -49,6 +49,7 @@ GET /t
 passed
 
 
+
 === TEST 2: reject incomplete sentinel profile
 --- config
     location /t {
