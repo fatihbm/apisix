@@ -181,13 +181,14 @@ function _M.init_worker()
     profiles = conf
 end
 
-function _M.resolve(conf)
+function _M.resolve(conf, profile_store)
     local profile_name, err = get_profile_name(conf.redis_host)
     if not profile_name then
         return conf, err
     end
 
-    local item = profiles and profiles:get(profile_name)
+    profile_store = profile_store or profiles
+    local item = profile_store and profile_store:get(profile_name)
     local profile = item and item.value
     if not profile then
         return nil, "redis profile not found: " .. profile_name
