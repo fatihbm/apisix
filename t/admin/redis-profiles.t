@@ -188,8 +188,8 @@ apisix:
             }]])
             assert(code < 300, body)
 
-            local res = assert(core.etcd.get("/redis_profiles/encrypted"))
-            local stored = core.json.decode(res.body.node.value).redis_password
+            local _, _, response = t("/apisix/admin/redis_profiles/encrypted", ngx.HTTP_GET)
+            local stored = assert(core.json.decode(response)).value.redis_password
             assert(stored ~= "redis-password")
             assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
 
@@ -197,8 +197,8 @@ apisix:
                 [[{"redis_database": 2}]])
             assert(code < 300, body)
 
-            res = assert(core.etcd.get("/redis_profiles/encrypted"))
-            stored = core.json.decode(res.body.node.value).redis_password
+            _, _, response = t("/apisix/admin/redis_profiles/encrypted", ngx.HTTP_GET)
+            stored = assert(core.json.decode(response)).value.redis_password
             assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
             ngx.say("passed")
         }
