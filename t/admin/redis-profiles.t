@@ -165,3 +165,44 @@ passed
 GET /t
 --- response_body
 passed
+
+
+
+=== TEST 6: encrypt passwords at rest and preserve them across patch
+--- yaml_config
+apisix:
+    data_encryption:
+        enable: true
+        keyring:
+            - edd1c9f0985e76a2
+--- config
+    location /t {
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local t = require("lib.test_admin").test
+            local code, body = t("/apisix/admin/redis_profiles/encrypted", ngx.HTTP_PUT, [[{
+                "mode": "standalone",
+                "host": "127.0.0.1",
+                "password": "redis-password"
+            }]])
+            assert(code == 200, body)
+
+            local res = assert(core.etcd.get("/redis_profiles/encrypted"))
+            local stored = res.body.node.value.password
+            assert(stored ~= "redis-password")
+            assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
+
+            code, body = t("/apisix/admin/redis_profiles/encrypted", ngx.HTTP_PATCH,
+                [[{"database": 2}]])
+            assert(code == 200, body)
+
+            res = assert(core.etcd.get("/redis_profiles/encrypted"))
+            stored = res.body.node.value.password
+            assert(core.data_encryption.decrypt(stored, "redis password") == "redis-password")
+            ngx.say("passed")
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
