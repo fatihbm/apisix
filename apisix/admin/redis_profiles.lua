@@ -23,8 +23,8 @@ local function check_conf(_, conf)
 end
 
 local function encrypt_conf(_, conf)
-    if conf.password then
-        conf.password = core.data_encryption.encrypt(conf.password)
+    if conf.redis_password then
+        conf.redis_password = core.data_encryption.encrypt(conf.redis_password)
     end
     if conf.sentinel_password then
         conf.sentinel_password = core.data_encryption.encrypt(conf.sentinel_password)
