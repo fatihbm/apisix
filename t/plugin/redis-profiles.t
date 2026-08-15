@@ -115,6 +115,7 @@ passed
     location /t {
         content_by_lua_block {
             local plugin = require("apisix.plugin")
+            local redis_profile = require("apisix.core.redis_profile")
             local original_conf = {
                 rate = 20,
                 burst = 0,
@@ -128,11 +129,9 @@ passed
             -- The prior request writes through the Admin API. Wait for the
             -- worker's etcd watcher rather than relying on request ordering.
             for _ = 1, 10 do
-                local plugins = plugin.filter({}, {
-                    value = {plugins = { ["limit-req"] = original_conf }},
-                })
-                if plugins[2].redis_host == "127.0.0.1" then
-                    resolved = plugins[2]
+                local conf = redis_profile.resolve(original_conf)
+                if conf and conf.redis_host == "127.0.0.1" then
+                    resolved = conf
                     break
                 end
                 ngx.sleep(0.1)
@@ -140,6 +139,10 @@ passed
 
             assert(resolved)
             assert(original_conf.redis_host == "redis-profile://limit-req-standalone")
+            local plugins = plugin.filter({}, {
+                value = {plugins = { ["limit-req"] = original_conf }},
+            })
+            assert(plugins[2].redis_host == "127.0.0.1")
             assert(resolved.redis_port == 6380)
             assert(resolved.redis_database == 9)
             assert(resolved.redis_timeout == 1000)
