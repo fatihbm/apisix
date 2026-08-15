@@ -89,6 +89,9 @@ __DATA__
                 })
                 assert(code < 300, body)
             end
+
+            -- Wait for etcd watchers to publish the profile and routes to workers.
+            ngx.sleep(1)
             ngx.say("passed")
         }
     }
@@ -155,6 +158,9 @@ passed
                 "upstream": {"type": "roundrobin", "nodes": {"127.0.0.1:1980": 1}}
             }]])
             assert(code < 300, body)
+
+            -- Wait for the updated profile to reach every worker before use.
+            ngx.sleep(1)
             ngx.say("passed")
         }
     }
