@@ -92,6 +92,23 @@ __DATA__
 
             -- Wait for etcd watchers to publish the profile and routes to workers.
             ngx.sleep(1)
+            for uri, _ in pairs(routes) do
+                code, body = t(uri, ngx.HTTP_GET)
+                assert(code == 200, body)
+            end
+
+            code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
+                "redis_keepalive_pool": 32,
+                "redis_keepalive_timeout": 30000
+            }]])
+            assert(code < 300, body)
+
+            -- Wait for the updated profile to reach every worker before use.
+            ngx.sleep(1)
+            for uri, _ in pairs(routes) do
+                code, body = t(uri, ngx.HTTP_GET)
+                assert(code == 200, body)
+            end
             ngx.say("passed")
         }
     }
@@ -100,30 +117,12 @@ GET /t
 --- response_body
 passed
 
-
-
-=== TEST 2: use standalone profile with each supported Redis plugin
---- pipelined_requests eval
-[
-    "GET /profile-limit-req",
-    "GET /profile-limit-conn",
-    "GET /profile-limit-count",
-]
---- error_code eval
-[200, 200, 200]
-
-
-
-=== TEST 3: update standalone profile and create cluster and sentinel profiles
+=== TEST 2: create cluster and sentinel profiles without changing plugin topology
 --- config
     location /t {
         content_by_lua_block {
             local t = require("lib.test_admin").test
-            local code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
-                "redis_keepalive_pool": 32,
-                "redis_keepalive_timeout": 30000
-            }]])
-            assert(code < 300, body)
+            local code, body
 
             code, body = t("/apisix/admin/redis_profiles/cluster", ngx.HTTP_PUT, [[{
                 "mode": "cluster",
@@ -159,8 +158,6 @@ passed
             }]])
             assert(code < 300, body)
 
-            -- Wait for the updated profile to reach every worker before use.
-            ngx.sleep(1)
             ngx.say("passed")
         }
     }
@@ -168,15 +165,3 @@ passed
 GET /t
 --- response_body
 passed
-
-
-
-=== TEST 4: retain standalone profile connectivity after its runtime update
---- pipelined_requests eval
-[
-    "GET /profile-limit-req",
-    "GET /profile-limit-conn",
-    "GET /profile-limit-count",
-]
---- error_code eval
-[200, 200, 200]
