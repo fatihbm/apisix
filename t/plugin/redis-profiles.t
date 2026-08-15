@@ -83,3 +83,71 @@ __DATA__
 GET /t
 --- response_body
 passed
+
+
+
+=== TEST 2: create a runtime standalone profile through the Admin API
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t("/apisix/admin/redis_profiles/limit-req-standalone",
+                ngx.HTTP_PUT, [[{
+                    "mode": "standalone",
+                    "redis_host": "127.0.0.1",
+                    "redis_port": 6380,
+                    "redis_timeout": 1000,
+                    "redis_keepalive_pool": 32
+                }]])
+            assert(code < 300, body)
+            ngx.say("passed")
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+
+
+
+=== TEST 3: resolve the watched profile in the common plugin dispatcher
+--- config
+    location /t {
+        content_by_lua_block {
+            local plugin = require("apisix.plugin")
+            local original_conf = {
+                rate = 20,
+                burst = 0,
+                key = "remote_addr",
+                policy = "redis",
+                redis_host = "redis-profile://limit-req-standalone",
+                redis_database = 9,
+            }
+            local resolved
+
+            -- The prior request writes through the Admin API. Wait for the
+            -- worker's etcd watcher rather than relying on request ordering.
+            for _ = 1, 10 do
+                local plugins = plugin.filter({}, {
+                    value = {plugins = { ["limit-req"] = original_conf }},
+                })
+                if plugins[2].redis_host == "127.0.0.1" then
+                    resolved = plugins[2]
+                    break
+                end
+                ngx.sleep(0.1)
+            end
+
+            assert(resolved)
+            assert(original_conf.redis_host == "redis-profile://limit-req-standalone")
+            assert(resolved.redis_port == 6380)
+            assert(resolved.redis_database == 9)
+            assert(resolved.redis_timeout == 1000)
+            assert(resolved.redis_keepalive_pool == 32)
+            ngx.say("passed")
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
