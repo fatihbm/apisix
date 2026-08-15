@@ -1,3 +1,4 @@
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -25,7 +26,7 @@ run_tests;
 
 __DATA__
 
-=== TEST 1: apply virtual Redis profile resolution in plugin dispatch
+=== TEST 1: apply virtual Redis profile resolution in the common plugin dispatcher
 --- config
     location /t {
         content_by_lua_block {
