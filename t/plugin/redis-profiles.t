@@ -117,6 +117,8 @@ GET /t
 --- response_body
 passed
 
+
+
 === TEST 2: create cluster and sentinel profiles without changing plugin topology
 --- config
     location /t {
