@@ -291,8 +291,16 @@ qr/healthy check use round robin
     location /t {
         content_by_lua_block {
             local config_etcd = require("apisix.core.config_etcd")
+            local original_sync_data = config_etcd.test_sync_data
             local count = 0
-            config_etcd.inject_sync_data(function()
+            config_etcd.inject_sync_data(function(self)
+                -- Other automatic configuration watchers run in the same
+                -- worker. Keep their real sync function so this test only
+                -- controls the synthetic configuration below.
+                if self.key then
+                    return original_sync_data(self)
+                end
+
                 if count % 2 == 0 then
                     count = count + 1
                     return nil, "has no healthy etcd endpoint available"
