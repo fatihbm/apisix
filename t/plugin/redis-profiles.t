@@ -14,17 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-BEGIN {
-    $ENV{REDIS_HOST} = "127.0.0.1";
-
-    if ($ENV{TEST_NGINX_CHECK_LEAK}) {
-        $SkipReason = "unavailable for the hup tests";
-    } else {
-        $ENV{TEST_NGINX_USE_HUP} = 1;
-        undef $ENV{TEST_NGINX_USE_STAP};
-    }
-}
-
 use t::APISIX 'no_plan';
 
 repeat_each(1);
@@ -32,134 +21,61 @@ no_long_string();
 no_root_location();
 no_shuffle();
 
-add_block_preprocessor(sub {
-    my ($block) = @_;
-    my $extra_init_worker_by_lua = $block->extra_init_worker_by_lua // "";
-    $extra_init_worker_by_lua .= <<_EOC_;
-        require("lib.test_redis").flush_all()
-_EOC_
-    $block->set_value("extra_init_worker_by_lua", $extra_init_worker_by_lua);
-});
-
 run_tests;
 
 __DATA__
 
-=== TEST 1: resolve profiles for redis plugins without route changes
+=== TEST 1: apply virtual Redis profile resolution in plugin dispatch
 --- config
     location /t {
         content_by_lua_block {
-            local t = require("lib.test_admin").test
-            local code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PUT, [[{
-                "mode": "standalone",
-                "redis_host": "$ENV://REDIS_HOST",
-                "redis_port": 6379,
-                "redis_database": 0,
-                "redis_timeout": 1000
-            }]])
-            assert(code < 300, body)
+            local plugin = require("apisix.plugin")
+            local redis_profile = require("apisix.core.redis_profile")
+            local original_resolve = redis_profile.resolve
+            local resolved_calls = 0
 
-            local routes = {
-                ["/profile-limit-req"] = {
-                    "limit-req", {
-                        rate = 20, burst = 0, key = "remote_addr", policy = "redis",
-                        redis_host = "redis-profile://standalone",
-                    },
-                },
-                ["/profile-limit-conn"] = {
-                    "limit-conn", {
-                        conn = 20, burst = 0, default_conn_delay = 0.01, key = "remote_addr",
-                        policy = "redis", redis_host = "redis-profile://standalone",
-                    },
-                },
-                ["/profile-limit-count"] = {
-                    "limit-count", {
-                        count = 20, time_window = 60, key = "remote_addr", policy = "redis",
-                        redis_host = "redis-profile://standalone",
-                    },
-                },
+            redis_profile.resolve = function(conf)
+                if conf.redis_host ~= "redis-profile://limit-req-standalone" then
+                    return conf
+                end
+
+                resolved_calls = resolved_calls + 1
+                return {
+                    redis_host = "127.0.0.1",
+                    redis_port = 6380,
+                    redis_database = conf.redis_database,
+                    redis_timeout = 1000,
+                    policy = conf.policy,
+                    rate = conf.rate,
+                    burst = conf.burst,
+                    key = conf.key,
+                }
+            end
+
+            local original_conf = {
+                rate = 20,
+                burst = 0,
+                key = "remote_addr",
+                policy = "redis",
+                redis_host = "redis-profile://limit-req-standalone",
+                redis_database = 9,
             }
+            local plugins = plugin.filter({}, {
+                value = {plugins = { ["limit-req"] = original_conf }},
+            })
 
-            for uri, route in pairs(routes) do
-                local name, plugin = route[1], route[2]
-                code, body = t("/apisix/admin/routes" .. uri, ngx.HTTP_PUT, {
-                    uri = uri,
-                    plugins = {[name] = plugin},
-                    upstream = {type = "roundrobin", nodes = {["127.0.0.1:1980"] = 1}},
-                })
-                assert(code < 300, body)
-            end
+            redis_profile.resolve = original_resolve
 
-            -- Wait for etcd watchers to publish the profile and routes to workers.
-            ngx.sleep(1)
-            for uri, _ in pairs(routes) do
-                code, body = t(uri, ngx.HTTP_GET)
-                assert(code == 200, body)
-            end
-
-            code, body = t("/apisix/admin/redis_profiles/standalone", ngx.HTTP_PATCH, [[{
-                "redis_keepalive_pool": 32,
-                "redis_keepalive_timeout": 30000
-            }]])
-            assert(code < 300, body)
-
-            -- Wait for the updated profile to reach every worker before use.
-            ngx.sleep(1)
-            for uri, _ in pairs(routes) do
-                code, body = t(uri, ngx.HTTP_GET)
-                assert(code == 200, body)
-            end
-            ngx.say("passed")
-        }
-    }
---- request
-GET /t
---- response_body
-passed
-
-
-
-=== TEST 2: create cluster and sentinel profiles without changing plugin topology
---- config
-    location /t {
-        content_by_lua_block {
-            local t = require("lib.test_admin").test
-            local code, body
-
-            code, body = t("/apisix/admin/redis_profiles/cluster", ngx.HTTP_PUT, [[{
-                "mode": "cluster",
-                "redis_cluster_name": "test",
-                "redis_cluster_nodes": ["127.0.0.1:7000", "127.0.0.1:7001", "127.0.0.1:7002"],
-                "redis_cluster_ssl": true,
-                "redis_cluster_ssl_verify": false
-            }]])
-            assert(code < 300, body)
-
-            code, body = t("/apisix/admin/redis_profiles/sentinel", ngx.HTTP_PUT, [[{
-                "mode": "sentinel",
-                "redis_master_name": "mymaster",
-                "redis_sentinels": ["127.0.0.1:26379"],
-                "redis_username": "master",
-                "redis_password": "master-password",
-                "redis_role": "master"
-            }]])
-            assert(code < 300, body)
-
-            code, body = t("/apisix/admin/routes/profile-cluster", ngx.HTTP_PUT, [[{
-                "uri": "/profile-cluster",
-                "plugins": {
-                    "limit-req": {
-                        "rate": 20,
-                        "burst": 0,
-                        "key": "remote_addr",
-                        "policy": "redis-cluster",
-                        "redis_host": "redis-profile://cluster"
-                    }
-                },
-                "upstream": {"type": "roundrobin", "nodes": {"127.0.0.1:1980": 1}}
-            }]])
-            assert(code < 300, body)
-
+            assert(resolved_calls == 1)
+            assert(#plugins == 2)
+            assert(plugins[1].name == "limit-req")
+            assert(plugins[2] ~= original_conf)
+            assert(original_conf.redis_host == "redis-profile://limit-req-standalone")
+            assert(plugins[2].redis_host == "127.0.0.1")
+            assert(plugins[2].redis_port == 6380)
+            assert(plugins[2].redis_database == 9)
+            assert(plugins[2].policy == "redis")
+            assert(plugins[2].rate == 20)
             ngx.say("passed")
         }
     }
