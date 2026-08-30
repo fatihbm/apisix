@@ -1412,6 +1412,58 @@ Plugin Config resource request address: /apisix/admin/plugin_configs/{id}
 | desc        | False    | Description of usage scenarios.                                                                                    | customer xxxx                                    |
 | labels      | False    | Attributes of the Plugin config specified as key-value pairs.                                                      | {"version":"v2","build":"16","env":"production"} |
 
+## Redis profile
+
+A Redis profile is a runtime-managed source of Redis connection settings. A
+Redis-using Plugin can refer to it with `redis-profile://{id}` in its
+`redis_host` field. The Plugin still owns its Redis policy and topology; use a
+profile whose fields are supported by that Plugin.
+
+### Redis profile API
+
+Redis profile resource request address: `/apisix/admin/redis_profiles/{id}`
+
+### Request Methods
+
+| Method | Request URI | Request Body | Description |
+| ------ | ----------- | ------------ | ----------- |
+| GET | /apisix/admin/redis_profiles | NULL | Fetches all Redis profiles. |
+| GET | /apisix/admin/redis_profiles/{id} | NULL | Fetches a Redis profile by id. |
+| PUT | /apisix/admin/redis_profiles/{id} | {...} | Creates or replaces a Redis profile. |
+| PATCH | /apisix/admin/redis_profiles/{id} | {...} | Updates selected fields of a Redis profile. |
+| DELETE | /apisix/admin/redis_profiles/{id} | NULL | Removes a Redis profile. |
+
+### Configuration examples
+
+Standalone profile:
+
+```json
+{
+  "mode": "standalone",
+  "redis_host": "redis.internal",
+  "redis_port": 6379,
+  "redis_password": "password",
+  "redis_timeout": 1000,
+  "redis_keepalive_pool": 32
+}
+```
+
+Use it from a Route Plugin configuration. Route-level fields, such as
+`redis_database`, override the profile value.
+
+```json
+{
+  "policy": "redis",
+  "redis_host": "redis-profile://limit-req-standalone",
+  "redis_database": 9
+}
+```
+
+Cluster profiles require `redis_cluster_name` and `redis_cluster_nodes`.
+Sentinel profiles require `redis_master_name` and `redis_sentinels`. A profile
+does not add topology support to a Plugin; configure a Plugin only with a
+topology that it already supports.
+
 ## Plugin Metadata
 
 ### Plugin Metadata API

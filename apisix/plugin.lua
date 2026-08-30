@@ -21,6 +21,7 @@ local enable_debug  = require("apisix.debug").enable_debug
 local wasm          = require("apisix.wasm")
 local expr          = require("resty.expr.v1")
 local secret        = require("apisix.secret")
+local redis_profile = require("apisix.core.redis_profile")
 
 local ngx           = ngx
 local ngx_ok        = ngx.OK
@@ -653,6 +654,14 @@ function _M.filter(ctx, conf, plugins, route_conf, phase)
     -- resolve $secret:// and $env:// references in plugin confs
     for i = 2, #plugins, 2 do
         local resolved = resolve_plugin_conf(plugins[i])
+        local err
+        resolved, err = redis_profile.resolve(resolved)
+        if not resolved then
+            core.log.error("failed to resolve redis profile: ", err)
+            resolved = plugins[i]
+        else
+            resolved = resolve_plugin_conf(resolved)
+        end
         if resolved ~= plugins[i] then
             plugins[i] = resolved
         end
@@ -683,6 +692,14 @@ function _M.stream_filter(user_route, plugins)
     -- resolve $secret:// and $env:// references in stream plugin confs
     for i = 2, #plugins, 2 do
         local resolved = resolve_plugin_conf(plugins[i])
+        local err
+        resolved, err = redis_profile.resolve(resolved)
+        if not resolved then
+            core.log.error("failed to resolve redis profile: ", err)
+            resolved = plugins[i]
+        else
+            resolved = resolve_plugin_conf(resolved)
+        end
         if resolved ~= plugins[i] then
             plugins[i] = resolved
         end
@@ -946,6 +963,7 @@ function _M.init_worker()
     end
 
     _M.plugin_metadatas = plugin_metadatas
+    redis_profile.init_worker()
 end
 
 
