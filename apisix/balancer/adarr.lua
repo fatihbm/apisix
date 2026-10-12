@@ -372,6 +372,7 @@ local function sync_nodes(state, up_nodes)
             }
             state.nodes[addr] = rec
         end
+        rec.addr = addr
         rec.weight = weight
         rec.ew = weight > 0 and (1 / weight) or 0
         rec.in_pool = weight > 0
