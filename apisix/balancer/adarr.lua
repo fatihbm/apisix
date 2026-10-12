@@ -47,6 +47,7 @@ local get_last_failure = require("ngx.balancer").get_last_failure
 
 local ipairs = ipairs
 local pairs = pairs
+local pcall = pcall
 local tonumber = tonumber
 local tostring = tostring
 local ngx = ngx
