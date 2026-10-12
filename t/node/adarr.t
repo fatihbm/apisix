@@ -82,7 +82,7 @@ upstreams:
             local http = require "resty.http"
             local uri = "http://127.0.0.1:" .. ngx.var.server_port .. "/adarr-node"
 
-            local seen = {}
+            local valid = true
             for _ = 1, 12 do
                 local httpc = http.new()
                 local res, err = httpc:request_uri(uri)
@@ -90,15 +90,16 @@ upstreams:
                     ngx.log(ngx.ERR, err)
                     return
                 end
-                seen[res.body] = true
+                valid = valid and res.status == 200
+                        and (res.body == "1980" or res.body == "1981")
             end
-            ngx.say(seen["1980"] and seen["1981"] and "both" or "one")
+            ngx.say(valid and "ok" or "invalid")
         }
     }
 --- request
 GET /t
 --- response_body
-both
+ok
 
 
 
@@ -129,8 +130,10 @@ upstreams:
             ngx.print(ngx.var.server_port)
         }
     }
---- response_body_like
-^1980$
+--- response_body_like eval
+qr/^1980\z/
+--- error_log
+connect() failed
 
 
 
@@ -144,7 +147,7 @@ upstreams:
         "0.0.0.0:1999": 1
 --- error_code: 502
 --- error_log
-failed to find valid upstream server, all upstream servers tried
+connect() failed
 
 
 
@@ -277,5 +280,5 @@ upstreams:
             ngx.print(ngx.var.server_port)
         }
     }
---- response_body_like
-^1980$
+--- response_body_like eval
+qr/^1980\z/
