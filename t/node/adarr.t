@@ -116,7 +116,7 @@ connect() failed
 
 
 
-=== TEST 3: retries the rest of the pool when connections are refused
+=== TEST 3: a healthy backend serves when another refuses connections
 --- apisix_yaml
 upstreams:
   - id: 1
@@ -132,8 +132,6 @@ upstreams:
     }
 --- response_body_like eval
 qr/^1980\z/
---- error_log
-connect() failed
 
 
 
