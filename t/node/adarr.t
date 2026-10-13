@@ -117,6 +117,8 @@ connect() failed
 
 
 === TEST 3: a healthy backend serves when another refuses connections
+--- no_error_log
+failed to find valid upstream server
 --- apisix_yaml
 upstreams:
   - id: 1
