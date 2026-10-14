@@ -111,6 +111,7 @@
             "plugins/response-rewrite",
             "plugins/error-page",
             "plugins/proxy-rewrite",
+            "plugins/query-rewrite",
             "plugins/grpc-transcode",
             "plugins/grpc-web",
             "plugins/fault-injection",
