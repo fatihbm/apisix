@@ -1,8 +1,6 @@
 name: CI Redhat UBI - Daily
 
 on:
-  schedule:
-    - cron: "0 0 * * *"
   pull_request:
     branches: [master]
     paths-ignore:
